@@ -1,6 +1,6 @@
 import sys
 
-from search import Problem
+from search import Problem, Node
 
 import itertools
 
@@ -13,6 +13,7 @@ class PMDAProblem(Problem):
     L = {}  # Dictionary of Labels (code associated w/ tuple of 2 (max wait time, consult time))
     P = {}  # Dictionary of Patients (code associated w/ tuple of 2 (current wait time, label code))
     t = 5  # the time interval in which the evaluation and new assignments are done
+    solution_node = Node(None) # Node corresponding to the solution state
 
     def set_initial_state(self):
         init_state = (0,) # Start at timestamp zero
@@ -103,7 +104,6 @@ class PMDAProblem(Problem):
         # Filtrar acções que resultam num estado inválido!
         return actions_list
 
-
     def goal_test(self, state):
         """Return True if the state is a goal. The default method compares the
         state to self.goal or checks for state in self.goal if it is a
@@ -177,16 +177,42 @@ class PMDAProblem(Problem):
             elif line_strs[0] == "P":
                 self.P[line_strs[1]] = (float(line_strs[2]), line_strs[3])
 
+    def search(self):
+        self.solution_node = depth_first_graph_search(self)
+        return False if self.solution_node == None else True
+
+    def save(self, f):
+        node = self.solution_node
+        actions = self.solution_node.depth * [None]
+
+        for i in range(self.solution_node.depth):
+            actions[self.solution_node.depth - i-1] = node.action
+            node = node.parent
+
+        solution_actions = self.M.__len__() * [actions.__len__() * [None]] # List of actione that lead to a solution state
+
+        for j in range(self.M.__len__()):
+            solution_actions[j] = [x[j][1] for x in actions]
+
+        for i in range(self.M.__len__()):
+            solution_actions[i].insert(0,  list(self.M.keys())[i])
+            solution_actions[i].insert(0, "MD")
+
+        for item in solution_actions:
+            f.write("%s\n" % str(item).replace("[","").replace("]","").replace("'","").replace(",",""))
+
+
+
 from search import depth_first_graph_search
 from search import depth_first_tree_search, uniform_cost_search
+
 if __name__ == '__main__':
-    pmda = PMDAProblem(sys.argv)
+    pmda = PMDAProblem(sys.argv) # Initiates the PMDAProblem object
 
-    result = depth_first_graph_search(pmda)
-    #result = depth_first_tree_search(pmda)
+    pmda.search() # Searches for a solution
 
+    f = open("solution.txt", "w")
+    pmda.save(f)    # Saves the actions that lead to the solution obtained
 
-    #result = uniform_cost_search(pmda, display=True)
-    end =1;
 
 
