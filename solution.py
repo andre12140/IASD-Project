@@ -1,8 +1,7 @@
 import sys
-
-from search import Problem, Node
-
 import itertools
+import time
+from search import Problem, Node, depth_first_graph_search, astar_search, uniform_cost_search, depth_first_tree_search
 
 class PMDAProblem(Problem):
 
@@ -12,7 +11,8 @@ class PMDAProblem(Problem):
     M = {}  # Dictionary of medics (code associated with efficiency)
     L = {}  # Dictionary of Labels (code associated w/ tuple of 2 (max wait time, consult time))
     P = {}  # Dictionary of Patients (code associated w/ tuple of 2 (current wait time, label code))
-    t = 5  # the time interval in which the evaluation and new assignments are done
+    t = 5   # the time interval in which the evaluation and new assignments are done
+    h = None  # Problem Heuristic
     solution_node = Node(None) # Node corresponding to the solution state
 
     def set_initial_state(self):
@@ -59,11 +59,6 @@ class PMDAProblem(Problem):
             consult time left ( If a patient has been attended for at least his consult time,
             won't be assigned to new medics) """
 
-        # Validate state before calculating new actions. Invalid state -> empty list of actions, won't expand the node
-        """for i in range(1 , self.P.__len__() +1):
-            if self.get_patient_from_state(state, i)[0] <0: # Atleast one patient has reached 0 minutes left to wait -> Invalid state
-                return []"""
-
         list_p = [] # List of patients tha need medical atention
         list_m = list(self.M.keys()) # List of medics that can give consults (In this case all medics)
 
@@ -86,23 +81,29 @@ class PMDAProblem(Problem):
 
         actions_list = [tuple(zip(i[0], i[1])) for i in actions] # List of all possible actions without filtering actions that lead to unfeasible states
         actiom_list_copy = actions_list.copy()
-
         # Removes all states that result in infeasible state
         for action in actiom_list_copy:
+            number_critic_patients = 0  # A critic patient is a patient that has to be attended in the next state. ( Remaining waiting time = 5)
+
             attended_patient = [i[1] for i in action if i[1] != "empty"] # Gets codes of patients being attended
             attended_patient_idx = [list(self.P.keys()).index(code) for code in attended_patient] # Converts code to idx
 
             all_index = list(range(0, self.P.__len__())) # Generates a list with all indexes
             [all_index.remove(idx) for idx in attended_patient_idx] # Removes attended patient indexes from the list
 
-            for i in all_index:
-                if self.get_patient_from_state(state,i+1)[0] == 0 and self.get_patient_from_state(state,i+1)[1] > 0 : # If current patient has zero minutes and not being attended
+            for i in all_index: # Iterate all patients that are not being attended by a medic in this action
+                patient_state = self.get_patient_from_state(state,i+1)
+                if patient_state[0] == 0 and patient_state[1] > 0 : # If current patient has zero minutes and not being attended
                     actions_list.remove(action)
                     break
+                if patient_state[0] == self.t: # If patient remaining waiting time = t (5)
+                    number_critic_patients +=1 # Increments # of critic patients
 
+            if number_critic_patients > self.M.__len__(): # If number of critic patients > number of medics -> Next state is unfeasible
+                actions_list.remove(action)
 
         # Filtrar acções que resultam num estado inválido!
-        return actions_list
+        return iter(actions_list)
 
     def goal_test(self, state):
         """Return True if the state is a goal. The default method compares the
@@ -178,7 +179,9 @@ class PMDAProblem(Problem):
                 self.P[line_strs[1]] = (float(line_strs[2]), line_strs[3])
 
     def search(self):
-        self.solution_node = depth_first_graph_search(self)
+        #self.solution_node = depth_first_graph_search(self)
+        self.solution_node = uniform_cost_search(self, display=True)
+        #self.solution_node = astar_search(self, display=True)
         return False if self.solution_node == None else True
 
     def save(self, f):
@@ -201,18 +204,14 @@ class PMDAProblem(Problem):
         for item in solution_actions:
             f.write("%s\n" % str(item).replace("[","").replace("]","").replace("'","").replace(",",""))
 
-
-
-from search import depth_first_graph_search
-from search import depth_first_tree_search, uniform_cost_search
-
 if __name__ == '__main__':
     pmda = PMDAProblem(sys.argv) # Initiates the PMDAProblem object
 
+    start = time.time()
     pmda.search() # Searches for a solution
-
+    print("---INFO---\nTime of execution:", time.time()-start ,"s\n" )
     f = open("solution.txt", "w")
     pmda.save(f)    # Saves the actions that lead to the solution obtained
-
+    print("Path Cost:", pmda.solution_node.path_cost)
 
 
