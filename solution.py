@@ -54,7 +54,6 @@ class PMDAProblem(Problem):
         super().__init__(self.set_initial_state())
 
     def actions(self, state):
-        #NOTE! TRY TO RETURN ITERATOR INSTEAD OF LIST #
         """ Returns all the possible actions from a given state. Has in account patient
             consult time left ( If a patient has been attended for at least his consult time,
             won't be assigned to new medics) """
@@ -99,7 +98,7 @@ class PMDAProblem(Problem):
                 if patient_state[0] == self.t: # If patient remaining waiting time = t (5)
                     number_critic_patients +=1 # Increments # of critic patients
 
-            if number_critic_patients > self.M.__len__(): # If number of critic patients > number of medics -> Next state is unfeasible
+            if number_critic_patients > self.M.__len__() and action in actions_list: # If number of critic patients > number of medics -> Next state is unfeasible
                 actions_list.remove(action)
 
         # Filtrar acções que resultam num estado inválido!
@@ -164,6 +163,15 @@ class PMDAProblem(Problem):
 
         return tuple(new_state)
 
+    def h(self,node):
+        sum = 0;
+        for i in range(1, self.P.__len__()+1):
+            try:
+                sum +=pow((1/self.get_patient_from_state(node.state,i)[1])*50,2)
+                sum +=pow((1/self.get_patient_from_state(node.state,i)[0])*50,2)
+            except: continue
+        return sum
+
     # Loads a problem from a (opened) file object f (see below for format specification)
     def load(self, file_obj):
         for line in file_obj:
@@ -179,12 +187,15 @@ class PMDAProblem(Problem):
                 self.P[line_strs[1]] = (float(line_strs[2]), line_strs[3])
 
     def search(self):
-        #self.solution_node = depth_first_graph_search(self)
-        self.solution_node = uniform_cost_search(self, display=True)
-        #self.solution_node = astar_search(self, display=True)
+
+        #self.solution_node = uniform_cost_search(self, display=True)
+        self.solution_node = astar_search(self, self.h, display=True)
         return False if self.solution_node == None else True
 
     def save(self, f):
+        if self.solution_node == None: #If there is no solution
+            f.write("Infeasible")
+            return
         node = self.solution_node
         actions = self.solution_node.depth * [None]
 
@@ -212,6 +223,7 @@ if __name__ == '__main__':
     print("\n---INFO---\nTime of execution:", round(time.time()-start, 2) ,"s" )
     f = open("solution.txt", "w")
     pmda.save(f)    # Saves the actions that lead to the solution obtained
-    print("Path Cost:", pmda.solution_node.path_cost)
+    try: print("Path Cost:", pmda.solution_node.path_cost)
+    except: print("Infeasible")
 
 
