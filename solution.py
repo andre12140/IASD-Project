@@ -209,7 +209,7 @@ if __name__ == '__main__':
 
     start = time.time()
     pmda.search() # Searches for a solution
-    print("---INFO---\nTime of execution:", round(time.time()-start, 2) ,"s" )
+    print("\n---INFO---\nTime of execution:", round(time.time()-start, 2) ,"s" )
     f = open("solution.txt", "w")
     pmda.save(f)    # Saves the actions that lead to the solution obtained
     print("Path Cost:", pmda.solution_node.path_cost)
