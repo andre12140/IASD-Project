@@ -163,7 +163,7 @@ class PMDAProblem(Problem):
 
         return tuple(new_state)
 
-    def h(self,node):
+    def heuristic(self,node):
         sum = 0;
         for i in range(1, self.P.__len__()+1):
             try:
