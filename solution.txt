@@ -1,6 +1,1 @@
-MD 025 003
-MD 005 020
-MD 006 001
-MD 007 empty
-MD 008 002
-MD 100 empty
+Infeasible

@@ -80,17 +80,53 @@ class PDMAProblem(Problem):
         # Patients with respective index of the medic that is attending
         combos_p = [t for t in (set(tuple(i) for i in combos_p))]
 
+        combos_p_copy = combos_p.copy()
+
         # Filter Medics with the same efficiency
-        patientsSameMedic = []
-        aux_list = []
+        """patientsSameMedic = []
+        aux_list = [[] for i in range(combos_p.__len__())]
+        listIdx = 0
         for medicIdx in self.equivalent_M:
-            for action in combos_p:
+            for action in combos_p_copy:
                 patientsSameMedic = list(itertools.permutations(
                     [action[i] for i in medicIdx]))
                 for pSameMedic in patientsSameMedic:
-                    aux_list = ([aux for aux in combos_p if [aux[i]
-                                                             for i in medicIdx] == list(pSameMedic)])
+                    aux_list[listIdx].append([aux for aux in combos_p if [aux[i]
+                                                                          for i in medicIdx] == list(pSameMedic)])
                     continue
+                aux_list[listIdx] = list(
+                    itertools.chain.from_iterable(aux_list[listIdx]))
+                listIdx += 1
+            # Remove duplicates from aux_list
+            b_set = set(tuple(x) for x in aux_list)
+            aux_list = [list(x) for x in b_set]
+
+            # aux_list lista de listas de listas em que cada sublist tem, para um conjunto de medicos, todas as repeticoes para cada acção
+"""
+        for medicIdx in self.equivalent_M:
+            for action in combos_p_copy:
+                # Generates a list with all Medic indexes
+                all_index = list(range(0, self.M.__len__()))
+                # Removes indexes of medics that are not in medicIdx from the list
+                [all_index.remove(idx) for idx in medicIdx]
+
+                patientsSameMedic = list(itertools.permutations(
+                    [action[i] for i in medicIdx]))
+
+                # removes first to not compare with the same action
+                patientsSameMedic.pop(0)
+
+                patientsDiffMedic = [action[i] for i in all_index]
+
+                for pSameMedic in patientsSameMedic:
+                    for actionAux in combos_p:
+                        if (list(pSameMedic) == [actionAux[i] for i in medicIdx]) and (patientsDiffMedic == [actionAux[i] for i in all_index]):
+                            if actionAux in combos_p:
+                                combos_p.remove(actionAux)
+                                break
+                    else:
+                        continue  # only executed if the inner loop did NOT break
+                    break  # only executed if the inner loop DID break
 
         actions = itertools.product(combos_m, combos_p)
 
