@@ -5,12 +5,16 @@ import itertools
 from search import Problem, Node, depth_first_graph_search, astar_search, uniform_cost_search, depth_first_tree_search
 from operator import itemgetter
 
+
 class PDMAProblem(Problem):
     M = {}  # Dictionary of medics (code associated with efficiency)
-    L = {}  # Dictionary of Labels (code associated w/ tuple of 2 (max wait time, consult time))
-    P = {}  # Dictionary of Patients (code associated w/ tuple of 2 (current wait time, label code))
+    # Dictionary of Labels (code associated w/ tuple of 2 (max wait time, consult time))
+    L = {}
+    # Dictionary of Patients (code associated w/ tuple of 2 (current wait time, label code))
+    P = {}
     t = 5  # the time interval in which the evaluation and new assignments are done
-    equivalent_M = [] # List of lists of medics that have the same efficiency (Mc)
+    # List of lists of medics that have the same efficiency (Mc)
+    equivalent_M = []
 
     solution_node = Node(None)  # Node corresponding to the solution state
 
@@ -20,27 +24,30 @@ class PDMAProblem(Problem):
             init_state = init_state + ("empty",)
 
         for p in self.P:
-            p_label = self.P[p][1];
+            p_label = self.P[p][1]
             p_max_wait_time = self.L[p_label][0]
             p_current_wait_time = self.P[p][0]
             p_availabe_wait_time = p_max_wait_time - p_current_wait_time
 
             p_consult_time_left = self.L[p_label][1]
-            init_state = init_state + ((p_availabe_wait_time, p_consult_time_left,),)
+            init_state = init_state + \
+                ((p_availabe_wait_time, p_consult_time_left,),)
         return init_state
 
     def get_medic_from_state(self, state, medic_idx):
         if medic_idx < 1:
             raise Exception("Medic index must start at 1")
         if medic_idx > self.M.__len__():
-            raise Exception("Medic index must not be greater than the number of medics")
+            raise Exception(
+                "Medic index must not be greater than the number of medics")
         return state[medic_idx]
 
     def get_patient_from_state(self, state, patient_idx):
         if patient_idx < 1:
             raise Exception("Patient index must start at 1")
         if patient_idx > self.P.__len__():
-            raise Exception("Patient index must not be greater than the number of patients")
+            raise Exception(
+                "Patient index must not be greater than the number of patients")
         return state[self.M.__len__() + patient_idx]
 
     def __init__(self):
@@ -52,7 +59,8 @@ class PDMAProblem(Problem):
             won't be assigned to new medics) """
 
         list_p = []  # List of patients tha need medical atention
-        list_m = list(self.M.keys())  # List of medics that can give consults (In this case all medics)
+        # List of medics that can give consults (In this case all medics)
+        list_m = list(self.M.keys())
 
         # Checks in the current state wich patients have consult time > 0
         for idx in range(1, self.P.__len__() + 1):
@@ -68,62 +76,59 @@ class PDMAProblem(Problem):
         num_medics = len(list_m)
         combos_m = [tuple(list_m)]
         combos_p = itertools.permutations(list_p, num_medics)
-        combos_p = [t for t in (set(tuple(i) for i in combos_p))]  # Remove duplicates
+        # Remove duplicates
+        # Patients with respective index of the medic that is attending
+        combos_p = [t for t in (set(tuple(i) for i in combos_p))]
+
+        # Filter Medics with the same efficiency
+        patientsSameMedic = []
+        aux_list = []
+        for medicIdx in self.equivalent_M:
+            for action in combos_p:
+                patientsSameMedic = list(itertools.permutations(
+                    [action[i] for i in medicIdx]))
+                for pSameMedic in patientsSameMedic:
+                    aux_list = ([aux for aux in combos_p if [aux[i]
+                                                             for i in medicIdx] == list(pSameMedic)])
+                    continue
+
         actions = itertools.product(combos_m, combos_p)
 
         actions_list = [list(zip(i[0], i[1])) for i in
                         actions]  # List of all possible actions without filtering actions that lead to unfeasible states
+
         action_list_copy = actions_list.copy()
         # Removes all states that result in infeasible state
         for action in action_list_copy:
-            number_critic_patients = 0  # A critic patient is a patient that has to be attended in the next state. ( Remaining waiting time = 5)
+            # A critic patient is a patient that has to be attended in the next state. ( Remaining waiting time = 5)
+            number_critic_patients = 0
 
-            attended_patient = [i[1] for i in action if i[1] != "empty"]  # Gets codes of patients being attended
+            # Gets codes of patients being attended
+            attended_patient = [i[1] for i in action if i[1] != "empty"]
             attended_patient_idx = [list(self.P.keys()).index(code) for code in
                                     attended_patient]  # Converts code to idx
 
-            all_index = list(range(0, self.P.__len__()))  # Generates a list with all indexes
-            [all_index.remove(idx) for idx in attended_patient_idx]  # Removes attended patient indexes from the list
+            # Generates a list with all indexes
+            all_index = list(range(0, self.P.__len__()))
+            # Removes attended patient indexes from the list
+            [all_index.remove(idx) for idx in attended_patient_idx]
 
             for i in all_index:  # Iterate all patients that are not being attended by a medic in this action
                 patient_state = self.get_patient_from_state(state, i + 1)
                 if patient_state[0] == 0 and patient_state[
-                    1] > 0:  # If current patient has zero minutes and not being attended
+                        1] > 0:  # If current patient has zero minutes and not being attended
                     actions_list.remove(action)
                     break
-                if patient_state[0] == self.t:  # If patient remaining waiting time = t (5)
+                # If patient remaining waiting time = t (5)
+                if patient_state[0] == self.t:
                     number_critic_patients += 1  # Increments # of critic patients
 
-            if number_critic_patients > self.M.__len__() and action in actions_list:  # If number of critic patients > number of medics -> Next state is unfeasible
+            # If number of critic patients > number of medics -> Next state is unfeasible
+            if number_critic_patients > self.M.__len__() and action in actions_list:
                 actions_list.remove(action)
-
-
-        aux =[]
-        aux_list_actions = []
-        for action in actions_list: # Converts actions to list of patients being attended.
-            for tup in action:      # Each list is an action, each sublist has the Patient code
-                aux.append(tup[1])
-            aux_list_actions.append(aux)
-            aux = []
-
-
-
-        aux_list = []
-        for action in actions_list:
-            for medic_set in self.equivalent_M:
-                aux_list = filter(self.my_f, [elem + [medic_set] + list( itemgetter(*medic_set)(aux_list_actions)) for elem in aux_list_actions])
-            a = list(aux_list)
-            #TRYNG TO PASS PATIENT CODES FROM MEDICSET INDEXES TO my_f
 
         # Filtrar acções que resultam num estado inválido!
         return iter(actions_list)
-
-    def my_f(self, list):
-        idx = list.pop()
-        """for i in idx:
-            list[i] =="""
-
-        return True
 
     def result(self, state, action):
         """A medic can either attend or not attend a patient
@@ -140,28 +145,32 @@ class PDMAProblem(Problem):
             # patient code
             # if any(list(self.P.keys())[i] in j for j in action):
             try:
-                medic_code = next(name for (name, number) in action if number == list(self.P.keys())[i - 1])
+                medic_code = next(
+                    name for (name, number) in action if number == list(self.P.keys())[i - 1])
                 new_state[(list(self.M.keys()).index(medic_code) + 1)] = list(self.P.keys())[
                     i - 1]  # Updates list of state w/ new medic values (patient code of medic(i) )
 
                 new_patient_conslt_time = patient_state[1] - (
-                        self.M[medic_code] * self.t)  # Consult time of patient decreases by (me * t)
+                    self.M[medic_code] * self.t)  # Consult time of patient decreases by (me * t)
                 new_state.append((patient_state[0],
                                   new_patient_conslt_time))  # Updates list of state w/ new patient values;  Patiente waiting time = previous state
 
             except:  # Patient not assigned to a medic by the given action
-                if patient_state[1] > 0:  # If patient consult time is greater than zero, change waiting time
+                # If patient consult time is greater than zero, change waiting time
+                if patient_state[1] > 0:
                     new_patient_remaining_time = patient_state[
-                                                     0] - self.t  # Time left for the patient to be attended decreases by 't'
+                        0] - self.t  # Time left for the patient to be attended decreases by 't'
                     new_state.append((new_patient_remaining_time, patient_state[
                         1]))  # Updates list of state w/ new patient values; Consult time = previous state
                 else:
-                    new_state.append(patient_state)  # If consult time <0, doesn't change state
+                    # If consult time <0, doesn't change state
+                    new_state.append(patient_state)
 
                 continue
 
         for i in range(1, self.M.__len__() + 1):
-            if new_state[i] == ' ': new_state[i] = "empty"
+            if new_state[i] == ' ':
+                new_state[i] = "empty"
 
         return tuple(new_state)
 
@@ -172,7 +181,8 @@ class PDMAProblem(Problem):
         checking against a single self.goal is not enough."""
 
         for i in range(1, self.P.__len__() + 1):
-            if self.get_patient_from_state(state, i)[1] > 0:  # Checks if atleast one patient has consult time > 0
+            # Checks if atleast one patient has consult time > 0
+            if self.get_patient_from_state(state, i)[1] > 0:
                 return False
 
         return True  # Goal state -> all patients were attended
@@ -180,8 +190,9 @@ class PDMAProblem(Problem):
     def path_cost(self, c, state1, action, state2):
         """Return the cost of a solution path that arrives at state2 from
         state1 via action, assuming cost c to get up to state1."""
-        sum = 0;
-        for i in range(1, self.P.__len__() + 1):  # Sums the squares of all patients total waiting time
+        sum = 0
+        # Sums the squares of all patients total waiting time
+        for i in range(1, self.P.__len__() + 1):
             label_code = list(self.P.values())[i - 1][1]
             max_wait_time = self.L[label_code][0]
             sum += pow(max_wait_time - self.get_patient_from_state(state2, i)[0],
@@ -193,8 +204,10 @@ class PDMAProblem(Problem):
         sum = 0
         for i in range(1, self.P.__len__() + 1):
             try:
-                sum += pow((1 / self.get_patient_from_state(node.state, i)[1]) * 50, 2)
-                sum += pow((1 / self.get_patient_from_state(node.state, i)[0]) * 50, 2)
+                sum += pow((1 / self.get_patient_from_state(node.state, i)
+                            [1]) * 50, 2)
+                sum += pow((1 / self.get_patient_from_state(node.state, i)
+                            [0]) * 50, 2)
             except:
                 continue
         return sum
@@ -208,15 +221,18 @@ class PDMAProblem(Problem):
             elif line_strs[0] == "MD":
                 self.M[line_strs[1]] = float(line_strs[2])
             elif line_strs[0] == "PL":
-                self.L[line_strs[1]] = (float(line_strs[2]), float(line_strs[3]))
+                self.L[line_strs[1]] = (
+                    float(line_strs[2]), float(line_strs[3]))
             elif line_strs[0] == "P":
                 self.P[line_strs[1]] = (float(line_strs[2]), line_strs[3])
         rev_dict = {}
         for key, value in self.M.items():
-            rev_dict.setdefault(value, set()).add(list(self.M.keys()).index(key))
+            rev_dict.setdefault(value, set()).add(
+                list(self.M.keys()).index(key))
 
         for key, value in rev_dict.items():
-            if value.__len__() > 1: self.equivalent_M.append(list(value))
+            if value.__len__() > 1:
+                self.equivalent_M.append(list(value))
         self.initial = self.set_initial_state()
 
     def save(self, f):
@@ -241,7 +257,8 @@ class PDMAProblem(Problem):
             solution_actions[i].insert(0, "MD")
 
         for item in solution_actions:
-            f.write("%s\n" % str(item).replace("[", "").replace("]", "").replace("'", "").replace(",", ""))
+            f.write("%s\n" % str(item).replace("[", "").replace(
+                "]", "").replace("'", "").replace(",", ""))
 
     def search(self):
         # self.solution_node = uniform_cost_search(self, display=True)
