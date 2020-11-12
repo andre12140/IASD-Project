@@ -20,8 +20,8 @@ class PDMAProblem(Problem):
 
     def set_initial_state(self):
         init_state = (0,)  # Start at timestamp zero
-        for m in self.M:
-            init_state = init_state + ("empty",)
+
+        init_state = init_state + (("empty",) * self.M.__len__())
 
         for p in self.P:
             p_label = self.P[p][1]
@@ -105,6 +105,9 @@ class PDMAProblem(Problem):
 """
         for medicIdx in self.equivalent_M:
             for action in combos_p_copy:
+                if action not in combos_p:
+                    continue
+
                 # Generates a list with all Medic indexes
                 all_index = list(range(0, self.M.__len__()))
                 # Removes indexes of medics that are not in medicIdx from the list
@@ -118,15 +121,19 @@ class PDMAProblem(Problem):
 
                 patientsDiffMedic = [action[i] for i in all_index]
 
+                if ('empty' in patientsSameMedic[0]) and (patientsDiffMedic.__len__() == 0 or 'empty' in patientsDiffMedic):
+                    # ESTA SHITTTTTT ESTA MALLLLLLLL
+                    test = []
+                    for list1, list2 in zip(combos_m[0], action):
+                        test.append(tuple([list1, list2]))
+                    return [test]
+
                 for pSameMedic in patientsSameMedic:
                     for actionAux in combos_p:
                         if (list(pSameMedic) == [actionAux[i] for i in medicIdx]) and (patientsDiffMedic == [actionAux[i] for i in all_index]):
                             if actionAux in combos_p:
                                 combos_p.remove(actionAux)
                                 break
-                    else:
-                        continue  # only executed if the inner loop did NOT break
-                    break  # only executed if the inner loop DID break
 
         actions = itertools.product(combos_m, combos_p)
 
@@ -241,9 +248,9 @@ class PDMAProblem(Problem):
         for i in range(1, self.P.__len__() + 1):
             try:
                 sum += pow((1 / self.get_patient_from_state(node.state, i)
-                            [1]) * 50, 2)
+                            [1]) * 30, 2)
                 sum += pow((1 / self.get_patient_from_state(node.state, i)
-                            [0]) * 50, 2)
+                            [0]) * 30, 2)
             except:
                 continue
         return sum

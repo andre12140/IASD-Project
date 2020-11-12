@@ -1,1 +1,4 @@
-Infeasible
+MD 0001 004 001 007 empty empty
+MD 0004 002 006 empty empty empty
+MD 0002 005 002 002 007 007
+MD 0010 003 003 006 empty empty
