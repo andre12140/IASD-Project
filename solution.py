@@ -7,16 +7,20 @@ from operator import itemgetter
 
 
 class PDMAProblem(Problem):
-    M = {}  # Dictionary of medics (code associated with efficiency)
-    # Dictionary of Labels (code associated w/ tuple of 2 (max wait time, consult time))
-    L = {}
-    # Dictionary of Patients (code associated w/ tuple of 2 (current wait time, label code))
-    P = {}
-    t = 5  # the time interval in which the evaluation and new assignments are done
-    # List of lists of medics that have the same efficiency (Mc)
-    equivalent_M = []
 
-    solution_node = Node(None)  # Node corresponding to the solution state
+    def __init__(self):
+        super().__init__(None)
+        self.M = {}  # Dictionary of medics (code associated with efficiency)
+        # Dictionary of Labels (code associated w/ tuple of 2 (max wait time, consult time))
+        self.L = {}
+        # Dictionary of Patients (code associated w/ tuple of 2 (current wait time, label code))
+        self.P = {}
+        self.t = 5  # the time interval in which the evaluation and new assignments are done
+        # List of lists of medics that have the same efficiency (Mc)
+        self.equivalent_M = []
+
+        # Node corresponding to the solution state
+        self.solution_node = Node(None)
 
     def set_initial_state(self):
         init_state = (0,)  # Start at timestamp zero
@@ -50,8 +54,37 @@ class PDMAProblem(Problem):
                 "Patient index must not be greater than the number of patients")
         return state[self.M.__len__() + patient_idx]
 
-    def __init__(self):
-        super().__init__(None)
+    def get_patient_result(self, action, state):
+
+        new_state = []
+
+        for i in range(1, self.P.__len__() + 1):
+            patient_state = self.get_patient_from_state(state, i)
+            # patient code
+            # if any(list(self.P.keys())[i] in j for j in action):
+            try:
+                medic_code = next(
+                    name for (name, number) in action if number == list(self.P.keys())[i - 1])
+
+                new_patient_conslt_time = patient_state[1] - (
+                    self.M[medic_code] * self.t)  # Consult time of patient decreases by (me * t)
+                new_state.append((patient_state[0],
+                                  new_patient_conslt_time))  # Updates list of state w/ new patient values;  Patiente waiting time = previous state
+
+            except:  # Patient not assigned to a medic by the given action
+                # If patient consult time is greater than zero, change waiting time
+                if patient_state[1] > 0:
+                    new_patient_remaining_time = patient_state[
+                        0] - self.t  # Time left for the patient to be attended decreases by 't'
+                    new_state.append((new_patient_remaining_time, patient_state[
+                        1]))  # Updates list of state w/ new patient values; Consult time = previous state
+                else:
+                    # If consult time <0, doesn't change state
+                    new_state.append(patient_state)
+
+                continue
+
+        return list(new_state)
 
     def actions(self, state):
         """ Returns all the possible actions from a given state. Has in account patient
@@ -80,7 +113,7 @@ class PDMAProblem(Problem):
         # Patients with respective index of the medic that is attending
         combos_p = [t for t in (set(tuple(i) for i in combos_p))]
 
-        combos_p_copy = combos_p.copy()
+        #combos_p_copy = combos_p.copy()
 
         # Filter Medics with the same efficiency
         """patientsSameMedic = []
@@ -99,11 +132,11 @@ class PDMAProblem(Problem):
                 listIdx += 1
             # Remove duplicates from aux_list
             b_set = set(tuple(x) for x in aux_list)
-            aux_list = [list(x) for x in b_set]
+            aux_list = [list(x) for x in b_set]"""
 
-            # aux_list lista de listas de listas em que cada sublist tem, para um conjunto de medicos, todas as repeticoes para cada acção
-"""
-        for medicIdx in self.equivalent_M:
+        # aux_list lista de listas de listas em que cada sublist tem, para um conjunto de medicos, todas as repeticoes para cada acção
+
+        """for medicIdx in self.equivalent_M:
             for action in combos_p_copy:
                 if action not in combos_p:
                     continue
@@ -133,12 +166,23 @@ class PDMAProblem(Problem):
                         if (list(pSameMedic) == [actionAux[i] for i in medicIdx]) and (patientsDiffMedic == [actionAux[i] for i in all_index]):
                             if actionAux in combos_p:
                                 combos_p.remove(actionAux)
-                                break
+                                break"""
 
         actions = itertools.product(combos_m, combos_p)
 
         actions_list = [list(zip(i[0], i[1])) for i in
                         actions]  # List of all possible actions without filtering actions that lead to unfeasible states
+
+        action_list_copy = actions_list.copy()
+        if self.equivalent_M.__len__() > 0:
+            patient_result_list = []
+            for action in action_list_copy:
+                patient_result = self.get_patient_result(action, state)
+
+                if patient_result in patient_result_list:
+                    actions_list.remove(action)
+                else:
+                    patient_result_list.append(patient_result)
 
         action_list_copy = actions_list.copy()
         # Removes all states that result in infeasible state
@@ -244,6 +288,18 @@ class PDMAProblem(Problem):
         return sum  # Contemplates the total cost from the initial state until state 2
 
     def heuristic(self, node):
+        sum = 0
+        for i in range(1, self.P.__len__() + 1):
+            try:
+                sum += pow((1 / self.get_patient_from_state(node.state, i)
+                            [1]) * 30, 2)
+                sum += pow((1 / self.get_patient_from_state(node.state, i)
+                            [0]) * 30, 2)
+            except:
+                continue
+        return sum
+
+    def heuristic2(self, node):
         sum = 0
         for i in range(1, self.P.__len__() + 1):
             try:
