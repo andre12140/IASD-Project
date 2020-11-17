@@ -2,8 +2,10 @@
 import sys
 import itertools
 
-from search import Problem, Node, depth_first_graph_search, astar_search, uniform_cost_search, depth_first_tree_search
+from search import Problem, Node, depth_first_graph_search, astar_search, uniform_cost_search, depth_first_tree_search, best_first_graph_search
 from operator import itemgetter
+
+import datetime
 
 
 class PDMAProblem(Problem):
@@ -81,15 +83,56 @@ class PDMAProblem(Problem):
                 else:
                     # If consult time <0, doesn't change state
                     new_state.append(patient_state)
-
                 continue
 
         return list(new_state)
+
+    def myPermutations(self, iterable, state, list_m, r=None):
+        # permutations('ABCD', 2) --> AB AC AD BA BC BD CA CB CD DA DB DC
+        # permutations(range(3)) --> 012 021 102 120 201 210
+        pool = tuple(iterable)
+        n = len(pool)
+        r = n if r is None else r
+        if r > n:
+            return
+        indices = list(range(n))
+        cycles = list(range(n, n-r, -1))
+
+        patient_result_list = []
+        action = list(zip(list_m, tuple(pool[i] for i in indices[:r])))
+        patient_result_list.append(self.get_patient_result(action, state))
+
+        yield action
+
+        while n:
+            for i in reversed(range(r)):
+                cycles[i] -= 1
+                if cycles[i] == 0:
+                    indices[i:] = indices[i+1:] + indices[i:i+1]
+                    cycles[i] = n - i
+                else:
+                    j = cycles[i]
+                    indices[i], indices[-j] = indices[-j], indices[i]
+                    action = list(
+                        zip(list_m, tuple(pool[i] for i in indices[:r])))
+
+                    state_aux = self.get_patient_result(action, state)
+
+                    if(state_aux in patient_result_list):
+                        continue
+
+                    patient_result_list.append(state_aux)
+                    yield action
+                    break
+            else:
+                return
 
     def actions(self, state):
         """ Returns all the possible actions from a given state. Has in account patient
             consult time left ( If a patient has been attended for at least his consult time,
             won't be assigned to new medics) """
+
+        """a = datetime.datetime.now()"""
 
         list_p = []  # List of patients tha need medical atention
         # List of medics that can give consults (In this case all medics)
@@ -104,69 +147,17 @@ class PDMAProblem(Problem):
         # If there are more medics than patients waiting, adds empty slot to be assigned to medics with no patients
         if list_m.__len__() > list_p.__len__():
             list_p.extend((list_m.__len__() - list_p.__len__()) * ["empty"])
+            # return itertools.product(tuple(self.M.keys()), tuple(list_p))
 
         # Gets action combinations
         num_medics = len(list_m)
         combos_m = [tuple(list_m)]
-        combos_p = itertools.permutations(list_p, num_medics)
+        actions_list = self.myPermutations(list_p, state, list_m, num_medics)
+
+        combos_p = 0  # itertools.permutations(list_p, num_medics)
         # Remove duplicates
         # Patients with respective index of the medic that is attending
         combos_p = [t for t in (set(tuple(i) for i in combos_p))]
-
-        #combos_p_copy = combos_p.copy()
-
-        # Filter Medics with the same efficiency
-        """patientsSameMedic = []
-        aux_list = [[] for i in range(combos_p.__len__())]
-        listIdx = 0
-        for medicIdx in self.equivalent_M:
-            for action in combos_p_copy:
-                patientsSameMedic = list(itertools.permutations(
-                    [action[i] for i in medicIdx]))
-                for pSameMedic in patientsSameMedic:
-                    aux_list[listIdx].append([aux for aux in combos_p if [aux[i]
-                                                                          for i in medicIdx] == list(pSameMedic)])
-                    continue
-                aux_list[listIdx] = list(
-                    itertools.chain.from_iterable(aux_list[listIdx]))
-                listIdx += 1
-            # Remove duplicates from aux_list
-            b_set = set(tuple(x) for x in aux_list)
-            aux_list = [list(x) for x in b_set]"""
-
-        # aux_list lista de listas de listas em que cada sublist tem, para um conjunto de medicos, todas as repeticoes para cada acção
-
-        """for medicIdx in self.equivalent_M:
-            for action in combos_p_copy:
-                if action not in combos_p:
-                    continue
-
-                # Generates a list with all Medic indexes
-                all_index = list(range(0, self.M.__len__()))
-                # Removes indexes of medics that are not in medicIdx from the list
-                [all_index.remove(idx) for idx in medicIdx]
-
-                patientsSameMedic = list(itertools.permutations(
-                    [action[i] for i in medicIdx]))
-
-                # removes first to not compare with the same action
-                patientsSameMedic.pop(0)
-
-                patientsDiffMedic = [action[i] for i in all_index]
-
-                if ('empty' in patientsSameMedic[0]) and (patientsDiffMedic.__len__() == 0 or 'empty' in patientsDiffMedic):
-                    # ESTA SHITTTTTT ESTA MALLLLLLLL
-                    test = []
-                    for list1, list2 in zip(combos_m[0], action):
-                        test.append(tuple([list1, list2]))
-                    return [test]
-
-                for pSameMedic in patientsSameMedic:
-                    for actionAux in combos_p:
-                        if (list(pSameMedic) == [actionAux[i] for i in medicIdx]) and (patientsDiffMedic == [actionAux[i] for i in all_index]):
-                            if actionAux in combos_p:
-                                combos_p.remove(actionAux)
-                                break"""
 
         actions = itertools.product(combos_m, combos_p)
 
@@ -174,19 +165,22 @@ class PDMAProblem(Problem):
                         actions]  # List of all possible actions without filtering actions that lead to unfeasible states
 
         action_list_copy = actions_list.copy()
-        if self.equivalent_M.__len__() > 0:
-            patient_result_list = []
-            for action in action_list_copy:
+
+        patient_result_list = []
+
+        # Removes all states that result in infeasible state
+        for action in action_list_copy:
+
+            # Filter Medics with the same efficiency (Remove actions that result in the same state)
+            if self.equivalent_M.__len__() > 0:
                 patient_result = self.get_patient_result(action, state)
 
                 if patient_result in patient_result_list:
                     actions_list.remove(action)
+                    continue
                 else:
                     patient_result_list.append(patient_result)
 
-        action_list_copy = actions_list.copy()
-        # Removes all states that result in infeasible state
-        for action in action_list_copy:
             # A critic patient is a patient that has to be attended in the next state. ( Remaining waiting time = 5)
             number_critic_patients = 0
 
@@ -214,6 +208,11 @@ class PDMAProblem(Problem):
             if number_critic_patients > self.M.__len__() and action in actions_list:
                 actions_list.remove(action)
 
+        """b = datetime.datetime.now()
+        c = b - a
+        print(c.microseconds)
+        exit(0)"""
+
         # Filtrar acções que resultam num estado inválido!
         return iter(actions_list)
 
@@ -233,7 +232,7 @@ class PDMAProblem(Problem):
             # if any(list(self.P.keys())[i] in j for j in action):
             try:
                 medic_code = next(
-                    name for (name, number) in action if number == list(self.P.keys())[i - 1])
+                    mCode for (mCode, patientCode) in action if patientCode == list(self.P.keys())[i - 1])
                 new_state[(list(self.M.keys()).index(medic_code) + 1)] = list(self.P.keys())[
                     i - 1]  # Updates list of state w/ new medic values (patient code of medic(i) )
 
@@ -266,13 +265,8 @@ class PDMAProblem(Problem):
         state to self.goal or checks for state in self.goal if it is a
         list, as specified in the constructor. Override this method if
         checking against a single self.goal is not enough."""
-
-        for i in range(1, self.P.__len__() + 1):
-            # Checks if atleast one patient has consult time > 0
-            if self.get_patient_from_state(state, i)[1] > 0:
-                return False
-
-        return True  # Goal state -> all patients were attended
+        return (sum([self.get_patient_from_state(state, i)[1]
+                     for i in range(1, self.P.__len__() + 1)]) == 0)  # Goal state -> all patients were attended
 
     def path_cost(self, c, state1, action, state2):
         """Return the cost of a solution path that arrives at state2 from
@@ -288,16 +282,86 @@ class PDMAProblem(Problem):
         return sum  # Contemplates the total cost from the initial state until state 2
 
     def heuristic(self, node):
-        sum = 0
-        for i in range(1, self.P.__len__() + 1):
-            try:
-                sum += pow((1 / self.get_patient_from_state(node.state, i)
-                            [1]) * 30, 2)
-                sum += pow((1 / self.get_patient_from_state(node.state, i)
-                            [0]) * 30, 2)
-            except:
-                continue
-        return sum
+        # Ignoring Patient Waiting time limit
+
+        volatilState = node.state
+
+        while(1):
+
+            if(self.goal_test(volatilState)):
+                break
+
+            # ratio to pick patient = (((Pacient waiting time + t)^2)/(patient consult time left^2)) * 1/Depth
+            # Depth = (Patient consult time left)/ t  #Minimum depth possible => being always attended by a Medic with max efficiency (100%)
+            ratios = []
+
+            # Patients with consult time remaining lower than 5 and higher than 0
+            pWithLowConsultTime = []
+
+            for i in range(1, self.P.__len__() + 1):
+                label_code = list(self.P.values())[i - 1][1]
+                max_wait_time = self.L[label_code][0]
+                pState = self.get_patient_from_state(volatilState, i)
+                """if(pState[0] < 0):
+                    return pow(self.path_cost(None, None, None, volatilState), 2)"""
+                pWaitingTime = max_wait_time - pState[0]
+                pConsultTime = pState[1]
+                if(pConsultTime < 5 and pConsultTime > 0):
+                    pWithLowConsultTime.append([i-1, pConsultTime])
+                if(pConsultTime <= 0):
+                    ratios.append(-1)
+                    continue
+                depth = pConsultTime / self.t
+                r = ((pow(pWaitingTime + self.t, 2) /
+                      pow(pConsultTime, 2)) * 1/depth) + (pWaitingTime ** 2)
+                """r = ((10*pWaitingTime + self.t) /
+                     pConsultTime) * 1/depth"""
+                """r = ((pWaitingTime)/(pConsultTime))"""
+                ratios.append(r)
+
+            # If there's more Medics than patients that need attention
+            # if this happens the the all patients will be attended and no patient will incrise wating time => Path cost doesn't change
+            ratiosAux = [ratios[i]
+                         for i in range(ratios.__len__()) if ratios[i] != -1]
+
+            if(ratiosAux.__len__() <= self.M.__len__()):
+                break
+
+            medic_index_effSorted = list(reversed([i[0] for i in sorted(
+                enumerate(self.M.values()), key=lambda x:x[1])]))
+
+            ratios_indexSorted = list(reversed([i[0] for i in sorted(
+                enumerate(ratios), key=lambda x:x[1])]))
+
+            combos_p = ["empty"] * self.M.__len__()
+
+            # Verify if there's a patient with less consult time that 5
+            if(pWithLowConsultTime.__len__() > 0):
+                indexAux1 = -1
+                for pIndex, pConsultTime in pWithLowConsultTime:
+                    combos_p[medic_index_effSorted[indexAux1]] = list(self.P.keys())[
+                        pIndex]
+                    indexAux1 -= 1
+                    if(indexAux1 < -medic_index_effSorted.__len__()):
+                        break
+
+            # Assign medic to patient
+            for medicIdx in medic_index_effSorted:
+                if(combos_p[medicIdx] == "empty"):
+                    for aux in ratios_indexSorted:
+                        if((list(self.P.keys())[aux] not in combos_p)):
+                            combos_p[medicIdx] = list(self.P.keys())[aux]
+                            break
+
+            h_action = list(itertools.product(
+                list(self.M.keys()), combos_p))
+
+            volatilState = self.result(volatilState, h_action)
+
+        h_cost = self.path_cost(
+            None, None, None, volatilState) - self.path_cost(None, None, None, node.state)
+
+        return h_cost
 
     def heuristic2(self, node):
         sum = 0
@@ -331,7 +395,10 @@ class PDMAProblem(Problem):
 
         for key, value in rev_dict.items():
             if value.__len__() > 1:
+                # List of medics with same efficiency
                 self.equivalent_M.append(list(value))
+
+        # Set inital state after loading input file
         self.initial = self.set_initial_state()
 
     def save(self, f):
@@ -346,7 +413,7 @@ class PDMAProblem(Problem):
             node = node.parent
 
         solution_actions = self.M.__len__() * [
-            actions.__len__() * [None]]  # List of actione that lead to a solution state
+            actions.__len__() * [None]]  # List of actions that lead to a solution state
 
         for j in range(self.M.__len__()):
             solution_actions[j] = [x[j][1] for x in actions]
@@ -362,4 +429,5 @@ class PDMAProblem(Problem):
     def search(self):
         # self.solution_node = uniform_cost_search(self, display=True)
         self.solution_node = astar_search(self, self.heuristic)
+
         return False if self.solution_node == None else True

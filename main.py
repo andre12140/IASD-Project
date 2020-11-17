@@ -1,10 +1,12 @@
 
 import solution
+import oliveira
 import sys
 import time
 
 if __name__ == '__main__':
     pmda = solution.PDMAProblem()  # Initiates the PMDAProblem object
+    #pmda = oliveira.PDMAProblem()
     pmda.load(open("demo.txt", "r"))
     start = time.time()
     pmda.search()  # Searches for a solution
