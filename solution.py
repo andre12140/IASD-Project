@@ -5,8 +5,6 @@ import itertools
 from search import Problem, Node, depth_first_graph_search, astar_search, uniform_cost_search, depth_first_tree_search, best_first_graph_search
 from operator import itemgetter
 
-import datetime
-
 
 class PDMAProblem(Problem):
 
@@ -92,8 +90,6 @@ class PDMAProblem(Problem):
             consult time left ( If a patient has been attended for at least his consult time,
             won't be assigned to new medics) """
 
-        """a = datetime.datetime.now()"""
-
         list_p = []  # List of patients tha need medical atention
         # List of medics that can give consults (In this case all medics)
         list_m = list(self.M.keys())
@@ -165,11 +161,6 @@ class PDMAProblem(Problem):
             # If number of critic patients > number of medics -> Next state is unfeasible
             if number_critic_patients > self.M.__len__() and action in actions_list:
                 actions_list.remove(action)
-
-        """b = datetime.datetime.now()
-        c = b - a
-        print(c.microseconds)
-        exit(0)"""
 
         # Filtrar acções que resultam num estado inválido!
         return iter(actions_list)
