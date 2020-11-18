@@ -87,68 +87,6 @@ class PDMAProblem(Problem):
 
         return list(new_state)
 
-    def check_valid_state(self, p_state):
-        for i in range(0, self.P.__len__()):
-            patient_state = p_state[i]
-            if(patient_state[0] < 0):
-                return False
-        return True
-
-    def verify_critic_state(self, state):
-        """A critic state is when there are more patients with remaning wating time = 0 than Medics"""
-        counter = 0
-        for i in range(1, self.P.__len__()+1):
-            patient_state = self.get_patient_from_state(state, i)
-            if(patient_state[0] == 0):
-                counter += 1
-        return counter > self.M.__len__()
-
-    def myPermutations(self, iterable, state, list_m, r=None):
-        # permutations('ABCD', 2) --> AB AC AD BA BC BD CA CB CD DA DB DC
-        # permutations(range(3)) --> 012 021 102 120 201 210
-        pool = tuple(iterable)
-        n = len(pool)
-        r = n if r is None else r
-        if r > n:
-            return
-        indices = list(range(n))
-        cycles = list(range(n, n-r, -1))
-
-        if(self.verify_critic_state(state)):
-            yield None
-            return
-
-        patient_result_list = []
-        action = list(zip(list_m, tuple(pool[i] for i in indices[:r])))
-        state_aux = self.get_patient_result(action, state)
-        if(self.check_valid_state(state_aux)):
-            patient_result_list.append(state_aux)
-            yield action
-
-        while n:
-            for i in reversed(range(r)):
-                cycles[i] -= 1
-                if cycles[i] == 0:
-                    indices[i:] = indices[i+1:] + indices[i:i+1]
-                    cycles[i] = n - i
-                else:
-                    j = cycles[i]
-                    indices[i], indices[-j] = indices[-j], indices[i]
-                    action = list(
-                        zip(list_m, tuple(pool[i] for i in indices[:r])))
-
-                    state_aux = self.get_patient_result(action, state)
-
-                    if(state_aux in patient_result_list or (not self.check_valid_state(state_aux))):
-                        break
-
-                    patient_result_list.append(state_aux)
-
-                    yield action
-                    break
-            else:
-                return
-
     def actions(self, state):
         """ Returns all the possible actions from a given state. Has in account patient
             consult time left ( If a patient has been attended for at least his consult time,
@@ -173,8 +111,68 @@ class PDMAProblem(Problem):
 
         # Gets action combinations
         num_medics = len(list_m)
-        #combos_m = [tuple(list_m)]
-        return self.myPermutations(list_p, state, list_m, num_medics)
+        combos_m = [tuple(list_m)]
+        combos_p = itertools.permutations(list_p, num_medics)
+        # Remove duplicates
+        # Patients with respective index of the medic that is attending
+        combos_p = [t for t in (set(tuple(i) for i in combos_p))]
+
+        actions = itertools.product(combos_m, combos_p)
+
+        actions_list = [list(zip(i[0], i[1])) for i in
+                        actions]  # List of all possible actions without filtering actions that lead to unfeasible states
+
+        action_list_copy = actions_list.copy()
+
+        patient_result_list = []
+
+        # Removes all states that result in infeasible state
+        for action in action_list_copy:
+
+            # Filter Medics with the same efficiency (Remove actions that result in the same state)
+            if self.equivalent_M.__len__() > 0:
+                patient_result = self.get_patient_result(action, state)
+
+                if patient_result in patient_result_list:
+                    actions_list.remove(action)
+                    continue
+                else:
+                    patient_result_list.append(patient_result)
+
+            # A critic patient is a patient that has to be attended in the next state. ( Remaining waiting time = 5)
+            number_critic_patients = 0
+
+            # Gets codes of patients being attended
+            attended_patient = [i[1] for i in action if i[1] != "empty"]
+            attended_patient_idx = [list(self.P.keys()).index(code) for code in
+                                    attended_patient]  # Converts code to idx
+
+            # Generates a list with all indexes
+            all_index = list(range(0, self.P.__len__()))
+            # Removes attended patient indexes from the list
+            [all_index.remove(idx) for idx in attended_patient_idx]
+
+            for i in all_index:  # Iterate all patients that are not being attended by a medic in this action
+                patient_state = self.get_patient_from_state(state, i + 1)
+                if patient_state[0] == 0 and patient_state[
+                        1] > 0:  # If current patient has zero minutes and not being attended
+                    actions_list.remove(action)
+                    break
+                # If patient remaining waiting time = t (5)
+                if patient_state[0] == self.t:
+                    number_critic_patients += 1  # Increments # of critic patients
+
+            # If number of critic patients > number of medics -> Next state is unfeasible
+            if number_critic_patients > self.M.__len__() and action in actions_list:
+                actions_list.remove(action)
+
+        """b = datetime.datetime.now()
+        c = b - a
+        print(c.microseconds)
+        exit(0)"""
+
+        # Filtrar acções que resultam num estado inválido!
+        return iter(actions_list)
 
     def result(self, state, action):
         """A medic can either attend or not attend a patient
@@ -228,7 +226,7 @@ class PDMAProblem(Problem):
         for i in range(1, self.P.__len__() + 1):
             if(self.get_patient_from_state(state, i)[1] > 0):
                 return False
-        return True
+        return True  # Goal state -> all patients were attended
 
     def path_cost(self, c, state1, action, state2):
         """Return the cost of a solution path that arrives at state2 from
@@ -275,7 +273,7 @@ class PDMAProblem(Problem):
                     continue
                 depth = pConsultTime / self.t
                 r = ((pow(pWaitingTime + self.t, 2) /
-                      pow(pConsultTime, 2)) * 1/depth)  # + (pWaitingTime ** 2)
+                      pow(pConsultTime, 2)) * 1/depth)
                 """r = ((10*pWaitingTime + self.t) /
                      pConsultTime) * 1/depth"""
                 """r = ((pWaitingTime)/(pConsultTime))"""
@@ -315,8 +313,7 @@ class PDMAProblem(Problem):
                             combos_p[medicIdx] = list(self.P.keys())[aux]
                             break
 
-            h_action = list(itertools.product(
-                list(self.M.keys()), combos_p))
+            h_action = list(zip(list(self.M.keys()), combos_p))
 
             volatilState = self.result(volatilState, h_action)
 
