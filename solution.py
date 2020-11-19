@@ -23,9 +23,8 @@ class PDMAProblem(Problem):
         self.solution_node = Node(None)
 
     def set_initial_state(self):
-        init_state = (0,)  # Start at timestamp zero
 
-        init_state = init_state + (("empty",) * self.M.__len__())
+        init_state = (("empty",) * self.M.__len__())
 
         for p in self.P:
             p_label = self.P[p][1]
@@ -44,7 +43,7 @@ class PDMAProblem(Problem):
         if medic_idx > self.M.__len__():
             raise Exception(
                 "Medic index must not be greater than the number of medics")
-        return state[medic_idx]
+        return state[medic_idx-1]
 
     def get_patient_from_state(self, state, patient_idx):
         if patient_idx < 1:
@@ -52,7 +51,7 @@ class PDMAProblem(Problem):
         if patient_idx > self.P.__len__():
             raise Exception(
                 "Patient index must not be greater than the number of patients")
-        return state[self.M.__len__() + patient_idx]
+        return state[self.M.__len__() + patient_idx-1]
 
     def get_patient_result(self, action, state):
 
@@ -170,7 +169,7 @@ class PDMAProblem(Problem):
                 If he attends, Patient Consult time decreases by t*me.
                 If he doesn't attend, Patient Waiting time increases by t."""
 
-        new_state = [state[0] + self.t]  # timestamp constant
+        new_state = []
 
         # Fill the(List) state with default value for the medics
         new_state.extend(self.M.__len__() * " ")
@@ -182,7 +181,7 @@ class PDMAProblem(Problem):
             try:
                 medic_code = next(
                     mCode for (mCode, patientCode) in action if patientCode == list(self.P.keys())[i - 1])
-                new_state[(list(self.M.keys()).index(medic_code) + 1)] = list(self.P.keys())[
+                new_state[(list(self.M.keys()).index(medic_code))] = list(self.P.keys())[
                     i - 1]  # Updates list of state w/ new medic values (patient code of medic(i) )
 
                 new_patient_conslt_time = patient_state[1] - (
@@ -203,7 +202,7 @@ class PDMAProblem(Problem):
 
                 continue
 
-        for i in range(1, self.M.__len__() + 1):
+        for i in range(0, self.M.__len__()):
             if new_state[i] == ' ':
                 new_state[i] = "empty"
 
@@ -312,18 +311,6 @@ class PDMAProblem(Problem):
             None, None, None, volatilState) - self.path_cost(None, None, None, node.state)
 
         return h_cost
-
-    def heuristic2(self, node):
-        sum = 0
-        for i in range(1, self.P.__len__() + 1):
-            try:
-                sum += pow((1 / self.get_patient_from_state(node.state, i)
-                            [1]) * 30, 2)
-                sum += pow((1 / self.get_patient_from_state(node.state, i)
-                            [0]) * 30, 2)
-            except:
-                continue
-        return sum
 
     def load(self, file_obj):
         for line in file_obj:
