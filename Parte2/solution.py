@@ -15,9 +15,8 @@ class MDProblem():
         self.bayes = self.createBayesNet()
 
     def solve(self):
-
-        # Build Evidence of measurements for elimination_ask = ev_dict
-        ev_dict = {}  # for the elimination ask
+        # Build Evidence of exame results for the elimination_ask
+        ev_dict = {}
         p_dict = {}
         time = 0
         for examesListTimeT in self.M:
@@ -26,18 +25,19 @@ class MDProblem():
                         ] = bool(examesListTimeT[i+1] == 'T')
             time += 1
 
-        # Get likelihood for each room and store value in dictionary
+        # Get likelihood for each disease and store values in a dictionary
         for disease in self.D:
-            # get likelihood of room being on fire = True
+            # Get likelihood of disease being presente on the pacient
             likelihood_aux = probability.elimination_ask(
                 str(self.totalTime-1) + '-' + disease, ev_dict, self.bayes)[True]
-            # Save values
             p_dict[disease] = likelihood_aux
-        # Get max value
+
         diseaseName = max(p_dict, key=p_dict.get)
         likelihood = p_dict[diseaseName]
 
         return (diseaseName, likelihood)
+
+    """Returns List of exame name that evaluate the diseaseName"""
 
     def getExam(self, diseaseName):
         listExams = []
@@ -45,6 +45,8 @@ class MDProblem():
             if (diseaseName in self.E[Key_exam]):
                 listExams.append(Key_exam)
         return listExams
+
+    """Returns List of diseses that share the same simptom has diseaseName"""
 
     def getCommonSimptom(self, diseaseName):
         listDiseases = []
@@ -59,9 +61,8 @@ class MDProblem():
 
     def getProb(self, diseaseName, CommonSimptomsLen):
         dic = {}
-        # length of neighbours is always +1 because we need to count with itself as well
+        # CommonSimptomsLen is always +1 because we need to count the disease itself as well
         num = CommonSimptomsLen + 1
-        # generate binary list
         condProbTable = list(itertools.product([False, True], repeat=num))
         if(num == 1):
             dic[True] = 1
@@ -70,31 +71,24 @@ class MDProblem():
 
         for row in condProbTable:
 
-            # Check if they are all 'False'
-            if all(item == False for item in row):
+            # if first element is 'False' then at t+1 its probability is 0
+            if row[0] == False:
                 dic[row] = 0
 
-            # if first element is 'False', it's now assured that there's at least a 'True' after
-            elif row[0] == False:
-                dic[row] = 0
-
-            # if first element is 'True', it's now assured that there's at least a 'False' after
+            # if first element is 'True'
             elif row[0] == True:
-                dic[row] = 1
-
-            TrueCount = 0
-            if(row[0] == True):
+                dic[row] = 1  # Assumption that the remnants of diseases are false
+                TrueCount = 0
                 for item in row:
                     if(item == True):
                         TrueCount += 1
-                        if(TrueCount >= 2):
+                        if(TrueCount >= 2):  # Check if at least one diseses that share a simptom is true
                             dic[row] = self.P
                             continue
         return dic
 
     def createBayesNet(self):
         baye = []
-        # Step in this case goes only until T-1
         for t in range(self.totalTime):
             for disease in self.D:
                 # Create parents at t=0
@@ -102,34 +96,24 @@ class MDProblem():
                     # Add initial probability
                     # X = BayesNode('X', '', 0.2)
                     baye.append((str(t) + '-' + disease, '', 0.5))
-                    # Add respective sensors if any
                     for exameName in self.getExam(disease):
                         baye.append((str(t) + '-' + exameName, str(t) + '-' + disease,
                                      {True: self.E[exameName][1], False: self.E[exameName][2]}))  # Y = BayesNode('Y', 'P', {T: 0.2, F: 0.7})
-                else:
-                    # Start building the child nodes
-                    ax = 1
+                else:  # Start building the child nodes
                     # Add parents of current node
                     parent = str(t-1) + '-' + disease
-
                     listCommonSimptom = self.getCommonSimptom(disease)
-
-                    # buscar sintomas que estao presentes nesta doenca
+                    # Doencas que partilham o mesmo sintomas que a doenca a ser avaliada
                     for sameSimptomDisease in listCommonSimptom:
                         parent = parent + ' ' + \
                             str(t-1) + '-' + sameSimptomDisease
-                        ax += 1
 
                     # Z = BayesNode('Z', 'P Q',{(T, T): 0.2, (T, F): 0.3, (F, T): 0.5, (F, F): 0.7})
                     baye.append((str(t) + '-' + disease, parent,
                                  self.getProb(disease, listCommonSimptom.__len__())))
-
-                    # Add respective sensors of the room if any
                     for exameName in self.getExam(disease):
                         baye.append((str(t) + '-' + exameName, str(t) + '-' + disease,
                                      {True: self.E[exameName][1], False: self.E[exameName][2]}))  # Y = BayesNode('Y', 'P', {T: 0.2, F: 0.7})
-        # Uncomment to see bayes net
-        # print(baye)
         return probability.BayesNet(baye)
 
     def load(self, file_obj):
